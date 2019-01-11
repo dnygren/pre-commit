@@ -1,0 +1,309 @@
+#!/bin/bash
+################################################################################
+# pre-commit : git hook to check coding standards before commit
+#
+# Created by: Dan Nygren
+# Email: dan.nygren@gmail.com
+# Permanent Email: Dan.Nygren@alumni.clemson.edu
+#
+#   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
+# This is a git hook script to verify what is about to be committed meets
+# coding standards. It is called by "git commit" with no arguments. The hook
+# should exit with non-zero status after issuing an appropriate message if it
+# wants to stop the commit.
+#
+# The script checks for:
+#   Non-ASCII character file names
+#   Compliance with uncrustify coding standards
+#   Line lengths greater than 80 characters
+#   Tab characters
+#   Trailing whitespace
+#
+# CALLING SEQUENCE      Called by "git commit"
+#
+# EXAMPLES              git commit
+#
+# TARGET SYSTEM         git, Linux
+#
+# DEVELOPMENT SYSTEM    Linux
+#
+# CALLS                 git, grep, awk, uncrustify, realpath, basename
+#
+# CALLED BY             git
+#
+# INPUTS                Files being committed by git,
+#                       uncrustify .cfg file at "$HOME/uncrustify/mmo.cfg"
+#                       FILE_EXTS to be checked and
+#                       DIR_NAMES and EXEMPT_FILE_EXTS to not check
+#
+# OUTPUTS               Information on where code checks failed and how to
+#                       resolve them. If uncrustify fails, a passing example is
+#                       saved in /tmp so it can be compared to the original with
+#                       gvimdiff or just substituted in place of the original.
+#
+# RETURNS               Non-zero on failure
+#
+# ERROR HANDLING        Exits with error message
+#
+# WARNINGS              1) Only GNUmakefiles may have tab characters.
+#                       (2. Describe anything a maintainer should be aware of)
+#                       (N. Describe anything a maintainer should be aware of)
+#
+################################################################################
+
+# Directories to ignore
+DIR_NAMES=""
+
+# File types NOT to put through all checks because the 80 char line
+# length limit and tab character checks will give false positives.
+EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .csv"
+
+# File types to perform uncrustify checks on
+FILE_EXTS=".c .h .cc .cpp .hpp"
+
+# Set uncrustify executable
+UNCRUSTIFY="/usr/bin/uncrustify"
+# UNCRUSTIFY="$HOME/uncrustify/uncrustify"
+
+# Set uncrustify config file
+CONFIG="$HOME/uncrustify/uncrustify.cfg"
+
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#^^^^^^^^^^^^ You should only have to change things above this line ^^^^^^^^^^^^
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+    against=HEAD
+else
+    # Initial commit: diff against an empty tree object
+    against=$(git hash-object -t tree /dev/null)
+fi
+
+##################################################################
+# If you want to allow non-ASCII filenames set this variable to true.
+allownonascii=$(git config --bool hooks.allownonascii)
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Cross platform projects tend to avoid non-ASCII filenames; prevent
+# them from being added to the repository. We exploit the fact that the
+# printable range starts at the space character and ends with tilde.
+if [ "$allownonascii" != "true" ] &&
+    # Note that the use of brackets around a tr range is ok here, (it's
+    # even required, for portability to Solaris 10's /usr/bin/tr), since
+    # the square bracket bytes happen to fall in the designated range.
+    test $(git diff --cached --name-only --diff-filter=A -z $against |
+    LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+then
+    cat <<\EOF
+ERROR Attempt to add a non-ASCII file name.
+This can cause problems if you want to work with people on other platforms.
+To be portable it is advisable to rename the file.
+If you know what you are doing you can disable this check using:
+  git config hooks.allownonascii true
+EOF
+    exit 1 # Exit failure
+fi
+
+##################################################################
+# If files don't comply with code conventions, print them and fail.
+#
+
+# grep for added (A) and modified (M) files
+# awk is being used here to print $2.
+# A complete git status --short line has extra space and extra data
+# at the beginning, so we want to remove that.
+# awk also performs automatic stripping.
+echo "### Attempting to validate the coding conventions. ###"
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+
+# Check whether the given file matches any of the set extensions
+matches_extension() {
+    local filename="$(basename -- "$1")"
+    local extension=".${filename##*.}"
+    local ext
+
+    for ext in $FILE_EXTS; do [ "$ext" = "$extension" ] && return 0; done
+    # return 0 is success
+    return 1
+}
+
+# Check whether the given file is in directories to be ignored
+
+# Return path from full path to file: "${full_filename#/*}"
+# Return first directory of path "${pathname%%/*}"
+matches_dir() {
+    local directory="${1#/*}"
+    directory="${directory%%/*}"
+    local dir
+
+    for dir in $DIR_NAMES; do [ "$dir" = "$directory" ] && return 0; done
+    # return 0 is success
+    return 1
+}
+
+# Make sure the uncrustify config file and executable are correctly set
+if [ ! -f "$CONFIG" ] ; then
+    printf "Error: uncrustify config file $CONFIG not found.\n"
+    printf "Install or set the correct path in "$0".\n"
+    exit 1 # Exit failure
+fi
+
+if ! command -v "$UNCRUSTIFY" > /dev/null ; then
+    printf "Error: uncrustify executable $UNCRUSTIFY not found.\n"
+    printf "Install or set the correct path in "$0".\n"
+    exit 1 # Exit failure
+fi
+
+EXIT_VALUE=0
+for file in $added_modded_files; do
+    # Check file if its directory does not matches any of the $DIR_NAMES
+    if ! matches_dir "$file" ; then
+        # Check file if it matches any of the extensions in $FILE_EXTS
+        if matches_extension "$file"; then
+            printf "Checking $file because its extension matches $FILE_EXTS\n"
+            $UNCRUSTIFY --check -c $CONFIG -f $file
+            if [ $? -ne 0 ] ; then
+                $UNCRUSTIFY -q -c $CONFIG -f $file > /tmp/`basename $file `
+                full_path_to_file=$(/usr/bin/realpath $file)
+                echo -n "-> Compare files with below command or copy "
+                echo "uncrustified temporary file to existing file."
+                echo " gvimdiff /tmp/`basename $file ` $full_path_to_file"
+                EXIT_VALUE=1
+            fi
+        else
+            echo "Ignored $file because its extension didn't match $FILE_EXTS"
+        fi
+    else
+        printf "Ignored $file because its directory matched $DIR_NAMES\n"
+    fi
+done
+
+if [ $EXIT_VALUE -eq 1 ]
+then
+    echo "Exiting because a $UNCRUSTIFY --check -c $CONFIG -f <file> failed."
+    printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    exit 1 # Exit failure
+else
+    printf "File(s) comply with the coding conventions.\n"
+fi
+
+##################################################################
+# Reuse the matches_extension function using exempt file extensions.
+# This time we use it to determine file types NOT to parse.
+FILE_EXTS=$EXEMPT_FILE_EXTS
+
+##################################################################
+# If there are files with lines > 80 characters, print them and fail.
+
+# grep for added (A) and modified (M) files
+# awk is being used here to print $2.
+# A complete git status --short line has extra space and extra data
+# at the beginning, so we want to remove that.
+# awk also performs automatic stripping.
+echo "### Attempting to validate the 80 character line length limit. ###"
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+
+# Now we can verify each file with a for loop:
+EXIT_VALUE=0
+for file in $added_modded_files; do
+    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    if !(matches_extension "$file") && !(matches_dir "$file"); then
+        if grep --line-number --with-filename '.\{81,\}' $file ; then
+            # If any files match, exit after checking all files
+            EXIT_VALUE=1
+        fi
+    fi
+done
+
+# If any files had a line > 80 characters, exit.
+if [ $EXIT_VALUE -eq 1 ]
+    then
+    echo "Exiting because 80 character line length exceeded."
+    printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    exit 1 # Exit failure
+else
+    printf "File(s) comply with the 80 character line limit.\n"
+fi
+
+##################################################################
+
+##################################################################
+# If there are files (other than GNUmakefile which needs tab
+# characters) containing tab characters, print them and fail.
+#
+# grep for added (A) and modified (M) files
+# awk is being used here to print $2.
+# A complete git status --short line has extra space and extra data
+# at the beginning, so we want to remove that.
+# awk also performs automatic stripping.
+echo "### Attempting to validate the tab character prohibition. ###"
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+
+# Now we can verify each file with a for loop:
+EXIT_VALUE=0
+for file in $added_modded_files; do
+    filebasename="$(/usr/bin/basename "$file")"
+    if [[ $filebasename == "GNUmakefile" ]] ; then
+        continue
+    fi
+    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    if !(matches_extension "$file") && !(matches_dir "$file"); then
+        if grep --line-number --with-filename -P '\t' $file ; then
+        echo "Has a tab" $file
+        # If any files match, exit after checking all files
+            EXIT_VALUE=1
+        fi
+    fi
+done
+
+# If any files had a tab character, exit.
+if [ $EXIT_VALUE -eq 1 ]
+then
+    echo "Exiting because a file with a tab character was found."
+    printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    exit 1 # Exit failure
+else
+    printf "File(s) comply with tab character prohibition.\n"
+fi
+##################################################################
+
+##################################################################
+# If there are whitespace errors, print the offending lines and file names.
+#
+# This used to be checked for as per the below, but this didn't
+# allow avoiding checks of directories that needed to be ignored
+# because they were from a contractor that didn't follow the
+# coding conventions.
+#
+#echo "### Validation there is no trailing whitespace. ###"
+#exec git diff-index --check --cached $against --
+
+echo "### Attempting to validate the trailing whitespace prohibition. ###"
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+
+# Now we can verify each file with a for loop:
+EXIT_VALUE=0
+for file in $added_modded_files; do
+    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    if !(matches_extension "$file") && !(matches_dir "$file"); then
+        if grep --line-number --with-filename '[[:blank:]]$' $file ; then
+        # If any files match, exit after checking all files
+            EXIT_VALUE=1
+        fi
+    fi
+done
+
+# If any files had a trailing whitespace character, exit.
+if [ $EXIT_VALUE -eq 1 ]
+then
+    echo "Exiting because a file with trailing whitespace was found."
+    printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    exit 1 # Exit failure
+else
+    printf "File(s) comply with trailing whitespace prohibition.\n"
+fi
+
+##################################################################
