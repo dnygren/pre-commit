@@ -32,7 +32,7 @@
 # CALLED BY             git
 #
 # INPUTS                Files being committed by git,
-#                       uncrustify .cfg file at "$HOME/uncrustify/mmo.cfg"
+#                       uncrustify .cfg file at "$HOME/uncrustify/mms.cfg"
 #                       FILE_EXTS to be checked and
 #                       DIR_NAMES and EXEMPT_FILE_EXTS to not check
 #
@@ -66,7 +66,8 @@ UNCRUSTIFY="/usr/bin/uncrustify"
 # UNCRUSTIFY="$HOME/uncrustify/uncrustify"
 
 # Set uncrustify config file
-CONFIG="$HOME/uncrustify/uncrustify.cfg"
+# CONFIG="/home/user/.config/uncrustify.cfg"
+CONFIG="$HOME/uncrustify/mms.cfg"
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #^^^^^^^^^^^^ You should only have to change things above this line ^^^^^^^^^^^^
