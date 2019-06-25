@@ -3,7 +3,7 @@
 # pre-commit : git hook to check coding standards before commit
 #
 # Created by: Dan Nygren
-# Email: dan.nygren@gmail.com
+# Email: nygren@msss.com
 # Permanent Email: Dan.Nygren@alumni.clemson.edu
 #
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
@@ -18,6 +18,7 @@
 #   Line lengths greater than 80 characters
 #   Tab characters
 #   Trailing whitespace
+#   DOS line endings
 #
 # CALLING SEQUENCE      Called by "git commit"
 #
@@ -52,6 +53,7 @@
 ################################################################################
 
 # Directories to ignore
+#DIR_NAMES="MAX MAX_PS Execute"
 DIR_NAMES=""
 
 # File types NOT to put through all checks because the 80 char line
@@ -62,8 +64,8 @@ EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .csv"
 FILE_EXTS=".c .h .cc .cpp .hpp"
 
 # Set uncrustify executable
-UNCRUSTIFY="/usr/bin/uncrustify"
-# UNCRUSTIFY="$HOME/uncrustify/uncrustify"
+# UNCRUSTIFY="/usr/bin/uncrustify"
+UNCRUSTIFY="$HOME/uncrustify/uncrustify"
 
 # Set uncrustify config file
 # CONFIG="/home/user/.config/uncrustify.cfg"
@@ -305,6 +307,37 @@ then
     exit 1 # Exit failure
 else
     printf "File(s) comply with trailing whitespace prohibition.\n"
+fi
+
+##################################################################
+
+##################################################################
+# If there are dos newlines, print the offending lines and file names.
+#
+
+echo "### Attempting to validate the Unix newline requirement. ###"
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+
+# Now we can verify each file with a for loop:
+EXIT_VALUE=0
+for file in $added_modded_files; do
+    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    if !(matches_extension "$file") && !(matches_dir "$file"); then
+        if grep --line-number --with-filename $'\r' $file ; then
+        # If any files match, exit after checking all files
+            EXIT_VALUE=1
+        fi
+    fi
+done
+
+# If any files had a DOS newline, exit.
+if [ $EXIT_VALUE -eq 1 ]
+then
+    echo "Exiting because a file with a DOS newline was found."
+    printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    exit 1 # Exit failure
+else
+    printf "File(s) comply with Unix newline requirement.\n"
 fi
 
 ##################################################################
