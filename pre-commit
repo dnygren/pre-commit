@@ -2,6 +2,9 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
+# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
+# Copyright (c) 2019, Daniel C. Nygren. <dan.nygren@alumni.clemson.edu>
+#
 # Created by: Dan Nygren
 # Email: nygren@msss.com
 # Permanent Email: Dan.Nygren@alumni.clemson.edu
@@ -19,6 +22,7 @@
 #   Tab characters
 #   Trailing whitespace
 #   DOS line endings
+#   Copyright check
 #
 # CALLING SEQUENCE      Called by "git commit"
 #
@@ -28,14 +32,15 @@
 #
 # DEVELOPMENT SYSTEM    Linux
 #
-# CALLS                 git, grep, awk, uncrustify, realpath, basename
+# CALLS                 git, grep, awk, uncrustify, realpath, basename, sed
 #
 # CALLED BY             git
 #
 # INPUTS                Files being committed by git,
 #                       uncrustify .cfg file at "$HOME/uncrustify/mms.cfg"
-#                       FILE_EXTS to be checked and
+#                       FILE_EXTS to be checked,
 #                       DIR_NAMES and EXEMPT_FILE_EXTS to not check
+#                       COPYRIGHT_HOLDER
 #
 # OUTPUTS               Information on where code checks failed and how to
 #                       resolve them. If uncrustify fails, a passing example is
@@ -53,7 +58,8 @@
 ################################################################################
 
 # Directories to ignore
-#DIR_NAMES="MAX MAX_PS Execute"
+#DIR_NAMES="MAX MAX_PS Execute" # Contractor doesn't follow our coding standards
+#DIR_NAMES="GDS_Data GDS_Max"   # Contractor doesn't follow our coding standards
 DIR_NAMES=""
 
 # File types NOT to put through all checks because the 80 char line
@@ -63,17 +69,22 @@ EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .csv"
 # File types to perform uncrustify checks on
 FILE_EXTS=".c .h .cc .cpp .hpp"
 
-# Set uncrustify executable
+# Set the uncrustify executable.
 # UNCRUSTIFY="/usr/bin/uncrustify"
 UNCRUSTIFY="$HOME/uncrustify/uncrustify"
 
-# Set uncrustify config file
+# Set the uncrustify config file.
 # CONFIG="/home/user/.config/uncrustify.cfg"
 CONFIG="$HOME/uncrustify/mms.cfg"
 
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#^^^^^^^^^^^^ You should only have to change things above this line ^^^^^^^^^^^^
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# Set the copyright holder.
+# If no copyright check should be performed, leave it undefined.
+# COPYRIGHT_HOLDER="Daniel C. Nygren"
+# COPYRIGHT_HOLDER="example.com and/or its affiliates"
+
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^ Place code that may need modification above this point. ^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 if git rev-parse --verify HEAD >/dev/null 2>&1
 then
@@ -82,6 +93,8 @@ else
     # Initial commit: diff against an empty tree object
     against=$(git hash-object -t tree /dev/null)
 fi
+
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 ##################################################################
 # If you want to allow non-ASCII filenames set this variable to true.
@@ -120,7 +133,6 @@ fi
 # at the beginning, so we want to remove that.
 # awk also performs automatic stripping.
 echo "### Attempting to validate the coding conventions. ###"
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 # Check whether the given file matches any of the set extensions
 matches_extension() {
@@ -207,7 +219,6 @@ FILE_EXTS=$EXEMPT_FILE_EXTS
 # at the beginning, so we want to remove that.
 # awk also performs automatic stripping.
 echo "### Attempting to validate the 80 character line length limit. ###"
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
@@ -243,7 +254,6 @@ fi
 # at the beginning, so we want to remove that.
 # awk also performs automatic stripping.
 echo "### Attempting to validate the tab character prohibition. ###"
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
@@ -285,7 +295,6 @@ fi
 #exec git diff-index --check --cached $against --
 
 echo "### Attempting to validate the trailing whitespace prohibition. ###"
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
@@ -316,7 +325,6 @@ fi
 #
 
 echo "### Attempting to validate the Unix newline requirement. ###"
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
 
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
@@ -340,4 +348,75 @@ else
     printf "File(s) comply with Unix newline requirement.\n"
 fi
 
+##################################################################
+
+##################################################################
+# If files do not contain compliant copyright notices, print the
+# offending file names.
+
+echo "### Attempting to validate the copyright line requirement. ###"
+
+# The copyright notice must include the year of first publication. A notice may
+# be accepted if the year of publication is presented in the form of the year of
+# first publication followed by multiple year dates (e.g. 1981, 1982, 1983).
+#
+# This sed regex allows for most variants of a copyright notice, including a
+# range of comma separated years. The components of the regex are:
+#
+# Beginning of line and any characters in front of "Copyright" (i.e. comment
+# indicators) and exactly one space after.
+RE_0="/^.*Copyright\s"
+# 1: Optionally a "(c)" string followed by exactly one space.
+RE_1="(\(c\))\s?"
+# 2: Optional initial year(s) of range and their comma(s) followed by a space.
+RE_2="([0-9]+,\s*)*"
+# 3: Final (or only) year of range, comma, and at least one space.
+RE_3="*([0-9]+,)\s+"
+# 4: Copyright holder's name followed by one period and then optionally any
+# characters (for closing comment indicators) until the end of line.
+RE_4="$COPYRIGHT_HOLDER\..*$"
+# 5: sed command to print matching lines.
+SED_5="/p"
+
+# Concatenate the sed regular expression components together.
+COPYRIGHT_LINE_RE=$RE_0$RE_1$RE_2$RE_3$RE_4$SED_5
+
+EXIT_VALUE=0
+
+# Only perform copyright checks if the COPYRIGHT_HOLDER string is not null.
+if [ -n "$COPYRIGHT_HOLDER" ]
+then
+    CURRENT_YEAR="$(date +%Y)"
+    # Now we can verify each file with a for loop:
+    for file in $added_modded_files; do
+        # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+        if !(matches_extension "$file") && !(matches_dir "$file"); then
+            # -n do not print unless /p flag present, then acts like grep.
+            # -r  use extended regular expressions
+            matches=$(/bin/sed -nr "$COPYRIGHT_LINE_RE" "$file")
+            if [[ -z "$matches" ]]; then
+                echo "$file - Non-existent or non-matching copyright line."
+                EXIT_VALUE=1
+            elif [[ ! $matches =~ ^.*$CURRENT_YEAR.*$ ]]; then
+                echo "$file - Copyright line does not contain $CURRENT_YEAR."
+                EXIT_VALUE=1
+            fi
+        fi
+    done
+    # If any files had a copyright header problem, exit.
+    if [ $EXIT_VALUE -eq 1 ]
+    then
+        echo "Exiting because a file had a copyright line error."
+        echo "Copyright lines must follow the form:"
+        echo "Copyright (c) FirstYear, $CURRENT_YEAR, $COPYRIGHT_HOLDER."
+        printf "***Remember to \"git add <changed file>\" before trying \
+again.***\n"
+        exit 1 # Exit failure
+    else
+        printf "File(s) comply with the copyright header requirement.\n"
+    fi
+else
+    printf "Copyright header checks were not performed because the \
+COPYRIGHT_HOLDER is undefined.\n"
+fi
 ##################################################################

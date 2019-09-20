@@ -1,0 +1,27 @@
+#! /bin/bash
+
+# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
+# Copyright (c) 2019, Daniel C. Nygren.
+
+# Copy git hooks out of their source repository and into .git/hooks directories
+
+# The master set of git hooks are kept (under git control) in this
+# repository directory
+GIT_DIR_TO_COPY_HOOKS_FROM=/home/nygren/SW/GitLab/Support/hooks
+# The hooks are copied out of where they are kept under revision control and
+# into the repositories with this prefix.
+GIT_BASE_DIRS_TO_COPY_HOOKS_INTO=*
+#GIT_BASE_DIRS_TO_COPY_HOOKS_INTO=flightcomputer-*
+
+for file in $GIT_BASE_DIRS_TO_COPY_HOOKS_INTO
+do
+    if [[ -d $file/.git ]] # If there is a git directory ...
+    then
+
+#    For testing purposes
+#    /bin/ls -la $file/.git/hooks
+#    ls $GIT_DIR_TO_COPY_HOOKS_FROM/*
+    echo "copying" $GIT_DIR_TO_COPY_HOOKS_FROM/* "to" $file/.git/hooks
+    /bin/cp $GIT_DIR_TO_COPY_HOOKS_FROM/* $file/.git/hooks
+    fi
+done
