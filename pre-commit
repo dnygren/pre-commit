@@ -2,12 +2,12 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
-# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
-# Copyright (c) 2019, Daniel C. Nygren. <dan.nygren@alumni.clemson.edu>
-#
 # Created by: Dan Nygren
 # Email: nygren@msss.com
 # Permanent Email: Dan.Nygren@alumni.clemson.edu
+#
+# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
+# Copyright (c) 2019, Daniel C. Nygren.
 #
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
 # This is a git hook script to verify what is about to be committed meets
@@ -395,10 +395,14 @@ then
             # -r  use extended regular expressions
             matches=$(/bin/sed -nr "$COPYRIGHT_LINE_RE" "$file")
             if [[ -z "$matches" ]]; then
-                echo "$file - Non-existent or non-matching copyright line."
+                full_path_to_file=$(/usr/bin/realpath $file)
+                echo "$full_path_to_file - Non-existent or non-matching \
+copyright line."
                 EXIT_VALUE=1
             elif [[ ! $matches =~ ^.*$CURRENT_YEAR.*$ ]]; then
-                echo "$file - Copyright line does not contain $CURRENT_YEAR."
+                full_path_to_file=$(/usr/bin/realpath $file)
+                echo "$full_path_to_file - Copyright line does not contain \
+$CURRENT_YEAR."
                 EXIT_VALUE=1
             fi
         fi

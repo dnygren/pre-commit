@@ -1,26 +1,64 @@
-#! /bin/bash
-
+#!/bin/bash
+################################################################################
+# copy_git_hooks: Copy hooks out of their repository and into .git/hooks.
+#
+# Created by: Daniel C. Nygren
+# Email: dan.nygren@gmail.com
+# Permanent Email: Dan.Nygren@alumni.clemson.edu
+#
 # BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
 # Copyright (c) 2019, Daniel C. Nygren.
+#
+#   This program helps a developer by copying git hooks out of a git repository
+# and into the .git/hooks directories of other repositories that will use the
+# hooks.
+#
+# CALLING SEQUENCE  copy_git_hooks
+#
+# EXAMPLES          copy_git_hooks
+#
+# TARGET SYSTEM     Linux git
+#
+# DEVELOPED USING   Linux
+#
+# CALLS             cp
+#
+# CALLED BY         Command line
+#
+# INPUTS            GIT_DIR_TO_COPY_HOOKS_FROM,
+#                   GIT_BASE_DIRS_TO_COPY_HOOKS_INTO
+#
+# OUTPUTS           Copies git hook files
+#
+# RETURNS           None
+#
+# ERROR HANDLING    None
+#
+# WARNINGS          (1. Describe anything a maintainer should be aware of)
+#                   (2. Describe anything a maintainer should be aware of)
+#                   (N. Describe anything a maintainer should be aware of)
+################################################################################
 
-# Copy git hooks out of their source repository and into .git/hooks directories
+# The master set of git hooks are kept (under git control) in this repository
+# directory:
+GIT_DIR_TO_COPY_HOOKS_FROM=/home/nygren/mmo_nygren/SW/GitLab/\
+flightcomputer-util/Support/hooks
 
-# The master set of git hooks are kept (under git control) in this
-# repository directory
-GIT_DIR_TO_COPY_HOOKS_FROM=/home/nygren/SW/GitLab/Support/hooks
 # The hooks are copied out of where they are kept under revision control and
-# into the repositories with this prefix.
+# into the repositories with this prefix:
 GIT_BASE_DIRS_TO_COPY_HOOKS_INTO=*
-#GIT_BASE_DIRS_TO_COPY_HOOKS_INTO=flightcomputer-*
+
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^ Place code that may need modification above this point. ^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 for file in $GIT_BASE_DIRS_TO_COPY_HOOKS_INTO
 do
     if [[ -d $file/.git ]] # If there is a git directory ...
     then
-
-#    For testing purposes
-#    /bin/ls -la $file/.git/hooks
-#    ls $GIT_DIR_TO_COPY_HOOKS_FROM/*
+#   The below lines may be uncommented for testing purposes
+#   /bin/ls -la $file/.git/hooks
+#   ls $GIT_DIR_TO_COPY_HOOKS_FROM/*
     echo "copying" $GIT_DIR_TO_COPY_HOOKS_FROM/* "to" $file/.git/hooks
     /bin/cp $GIT_DIR_TO_COPY_HOOKS_FROM/* $file/.git/hooks
     fi
