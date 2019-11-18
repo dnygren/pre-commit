@@ -3,8 +3,8 @@
 # copy_git_hooks: Copy hooks out of their repository and into .git/hooks.
 #
 # Created by: Daniel C. Nygren
-# Email: dan.nygren@gmail.com
-# Permanent Email: Dan.Nygren@alumni.clemson.edu
+# Email: nygren@msss.com
+# Permanent Email: dan.nygren@gmail.com
 #
 # BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
 # Copyright (c) 2019, Daniel C. Nygren.

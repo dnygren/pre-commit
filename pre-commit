@@ -4,10 +4,7 @@
 #
 # Created by: Dan Nygren
 # Email: nygren@msss.com
-# Permanent Email: Dan.Nygren@alumni.clemson.edu
-#
-# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
-# Copyright (c) 2019, Daniel C. Nygren.
+# Permanent Email: dan.nygren@gmail.com
 #
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
 # This is a git hook script to verify what is about to be committed meets
@@ -32,14 +29,15 @@
 #
 # DEVELOPMENT SYSTEM    Linux
 #
-# CALLS                 git, grep, awk, uncrustify, realpath, basename, sed
+# CALLS                 git, grep, awk, uncrustify, realpath, dirname,
+#                       basename, sed
 #
 # CALLED BY             git
 #
 # INPUTS                Files being committed by git,
 #                       uncrustify .cfg file at "$HOME/uncrustify/mms.cfg"
 #                       FILE_EXTS to be checked,
-#                       DIR_NAMES and EXEMPT_FILE_EXTS to not check
+#                       EXEMPT_DIR_NAMES and EXEMPT_FILE_EXTS to not check
 #                       COPYRIGHT_HOLDER
 #
 # OUTPUTS               Information on where code checks failed and how to
@@ -57,14 +55,17 @@
 #
 ################################################################################
 
+# Don't ignore any directories
+#EXEMPT_DIR_NAMES=""
 # Directories to ignore
-#DIR_NAMES="MAX MAX_PS Execute" # Contractor doesn't follow our coding standards
-#DIR_NAMES="GDS_Data GDS_Max"   # Contractor doesn't follow our coding standards
-DIR_NAMES=""
+# Ignore old style revision control system "RCS" directories
+#EXEMPT_DIR_NAMES="RCS" # This normally should be done with a .gitignore file
+# Contractor that produced these directories doesn't follow our coding standards
+EXEMPT_DIR_NAMES="MAX MAX_PS Execute GDS_Data GDS_Max"
 
 # File types NOT to put through all checks because the 80 char line
 # length limit and tab character checks will give false positives.
-EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .csv"
+EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .ico .csv .html .xml .md .cfg"
 
 # File types to perform uncrustify checks on
 FILE_EXTS=".c .h .cc .cpp .hpp"
@@ -124,6 +125,12 @@ EOF
 fi
 
 ##################################################################
+# Print directories exempt from all checks.
+#
+echo "### File in the following directories are exempt from ALL checks: ###"
+echo $EXEMPT_DIR_NAMES
+
+##################################################################
 # If files don't comply with code conventions, print them and fail.
 #
 
@@ -141,21 +148,35 @@ matches_extension() {
     local ext
 
     for ext in $FILE_EXTS; do [ "$ext" = "$extension" ] && return 0; done
-    # return 0 is success
+    # return 0 is success (matches)
     return 1
 }
 
-# Check whether the given file is in directories to be ignored
-
-# Return path from full path to file: "${full_filename#/*}"
-# Return first directory of path "${pathname%%/*}"
+# Check whether the given file is under any directories to be ignored
 matches_dir() {
-    local directory="${1#/*}"
-    directory="${directory%%/*}"
-    local dir
+    #echo "Full filename = $1"
 
-    for dir in $DIR_NAMES; do [ "$dir" = "$directory" ] && return 0; done
-    # return 0 is success
+    local file_directory=$(dirname $1)
+    #echo "File Directory = $file_directory"
+
+    local spaced_file_directory=${file_directory//\// }
+    #echo "Spaced file directory = $spaced_file_directory"
+
+    local dir
+    for dir in $EXEMPT_DIR_NAMES
+    do
+        for path_portion in $spaced_file_directory
+        do
+            #echo "If $dir == $path_portion then exit matches_dir() function"
+            if [[ "$dir" == "$path_portion" ]]
+            then
+                #echo -e "Match!\n"
+                return 0
+            fi
+        done
+    done
+    # return 0 is success (matches)
+    #echo -e "No \"$EXEMPT_DIR_NAMES\" in \"$spaced_file_directory\".\n"
     return 1
 }
 
@@ -174,7 +195,7 @@ fi
 
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Check file if its directory does not matches any of the $DIR_NAMES
+    # Check file if its directory does not matches any of the $EXEMPT_DIR_NAMES
     if ! matches_dir "$file" ; then
         # Check file if it matches any of the extensions in $FILE_EXTS
         if matches_extension "$file"; then
@@ -185,14 +206,14 @@ for file in $added_modded_files; do
                 full_path_to_file=$(/usr/bin/realpath $file)
                 echo -n "-> Compare files with below command or copy "
                 echo "uncrustified temporary file to existing file."
-                echo " gvimdiff /tmp/`basename $file ` $full_path_to_file"
+                echo " gvimdiff /tmp/`basename $file` $full_path_to_file"
                 EXIT_VALUE=1
             fi
         else
-            echo "Ignored $file because its extension didn't match $FILE_EXTS"
+            echo "$file exempt because its extension didn't match $FILE_EXTS"
         fi
     else
-        printf "Ignored $file because its directory matched $DIR_NAMES\n"
+        printf "$file exempt because its directory matched $EXEMPT_DIR_NAMES\n"
     fi
 done
 
@@ -202,13 +223,15 @@ then
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
     exit 1 # Exit failure
 else
-    printf "File(s) comply with the coding conventions.\n"
+    printf "Non-exempt file(s) comply.\n"
 fi
 
 ##################################################################
 # Reuse the matches_extension function using exempt file extensions.
 # This time we use it to determine file types NOT to parse.
 FILE_EXTS=$EXEMPT_FILE_EXTS
+echo "### File extensions exempt from the following checks: ###"
+echo $EXEMPT_FILE_EXTS
 
 ##################################################################
 # If there are files with lines > 80 characters, print them and fail.
@@ -223,7 +246,7 @@ echo "### Attempting to validate the 80 character line length limit. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
     if !(matches_extension "$file") && !(matches_dir "$file"); then
         if grep --line-number --with-filename '.\{81,\}' $file ; then
             # If any files match, exit after checking all files
@@ -239,7 +262,7 @@ if [ $EXIT_VALUE -eq 1 ]
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
     exit 1 # Exit failure
 else
-    printf "File(s) comply with the 80 character line limit.\n"
+    printf "Non-exempt file(s) comply.\n"
 fi
 
 ##################################################################
@@ -258,11 +281,11 @@ echo "### Attempting to validate the tab character prohibition. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    filebasename="$(/usr/bin/basename "$file")"
+    filebasename="$(basename "$file")"
     if [[ $filebasename == "GNUmakefile" ]] ; then
         continue
     fi
-    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
     if !(matches_extension "$file") && !(matches_dir "$file"); then
         if grep --line-number --with-filename -P '\t' $file ; then
         echo "Has a tab" $file
@@ -279,7 +302,7 @@ then
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
     exit 1 # Exit failure
 else
-    printf "File(s) comply with tab character prohibition.\n"
+    printf "Non-exempt file(s) comply.\n"
 fi
 ##################################################################
 
@@ -299,7 +322,7 @@ echo "### Attempting to validate the trailing whitespace prohibition. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
     if !(matches_extension "$file") && !(matches_dir "$file"); then
         if grep --line-number --with-filename '[[:blank:]]$' $file ; then
         # If any files match, exit after checking all files
@@ -315,7 +338,7 @@ then
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
     exit 1 # Exit failure
 else
-    printf "File(s) comply with trailing whitespace prohibition.\n"
+    printf "Non-exempt file(s) comply.\n"
 fi
 
 ##################################################################
@@ -329,7 +352,7 @@ echo "### Attempting to validate the Unix newline requirement. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
     if !(matches_extension "$file") && !(matches_dir "$file"); then
         if grep --line-number --with-filename $'\r' $file ; then
         # If any files match, exit after checking all files
@@ -345,7 +368,7 @@ then
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
     exit 1 # Exit failure
 else
-    printf "File(s) comply with Unix newline requirement.\n"
+    printf "Non-exempt file(s) comply.\n"
 fi
 
 ##################################################################
@@ -389,7 +412,7 @@ then
     CURRENT_YEAR="$(date +%Y)"
     # Now we can verify each file with a for loop:
     for file in $added_modded_files; do
-        # Don't check EXEMPT_FILE_EXTS or DIR_NAMES
+        # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
         if !(matches_extension "$file") && !(matches_dir "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
@@ -417,7 +440,7 @@ $CURRENT_YEAR."
 again.***\n"
         exit 1 # Exit failure
     else
-        printf "File(s) comply with the copyright header requirement.\n"
+        printf "Non-exempt file(s) comply.\n"
     fi
 else
     printf "Copyright header checks were not performed because the \
