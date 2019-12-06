@@ -3,8 +3,10 @@
 # pre-commit : git hook to check coding standards before commit
 #
 # Created by: Dan Nygren
-# Email: nygren@msss.com
-# Permanent Email: dan.nygren@gmail.com
+# Email: dan.nygren@gmail.com
+#
+# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
+# Copyright (c) 2019, Daniel C. Nygren.
 #
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
 # This is a git hook script to verify what is about to be committed meets
@@ -39,6 +41,7 @@
 #                       FILE_EXTS to be checked,
 #                       EXEMPT_DIR_NAMES and EXEMPT_FILE_EXTS to not check
 #                       COPYRIGHT_HOLDER
+#                       Files EXEMPT_FROM_COPYRIGHT not to check for copyright.
 #
 # OUTPUTS               Information on where code checks failed and how to
 #                       resolve them. If uncrustify fails, a passing example is
@@ -82,6 +85,8 @@ CONFIG="$HOME/uncrustify/mms.cfg"
 # If no copyright check should be performed, leave it undefined.
 # COPYRIGHT_HOLDER="Daniel C. Nygren"
 # COPYRIGHT_HOLDER="example.com and/or its affiliates"
+# Files exempt from copyright check
+EXEMPT_FROM_COPYRIGHT="LICENSE"
 
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # ^^^^^^^^^^ Place code that may need modification above this point. ^^^^^^^^^^
@@ -177,6 +182,24 @@ matches_dir() {
     done
     # return 0 is success (matches)
     #echo -e "No \"$EXEMPT_DIR_NAMES\" in \"$spaced_file_directory\".\n"
+    return 1
+}
+
+# Check whether the given file is under any directories to be ignored
+matches_exempt_from_copyright() {
+    #echo "Full filename = $1"
+
+    local filename="$(basename -- "$1")"
+    for exemptname in $EXEMPT_FROM_COPYRIGHT
+    do
+        if [[ "$exemptname" == "$filename" ]]
+        then
+            #echo -e "Match!\n"
+            return 0
+        fi
+    done
+    # return 0 is success (matches)
+    #echo -e "No \"$EXEMPT_FROM_COPYRIGHT\" in \"$1\".\n"
     return 1
 }
 
@@ -412,8 +435,10 @@ then
     CURRENT_YEAR="$(date +%Y)"
     # Now we can verify each file with a for loop:
     for file in $added_modded_files; do
-        # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-        if !(matches_extension "$file") && !(matches_dir "$file"); then
+        # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
+        # EXEMPT_FROM_COPYRIGHT
+        if !(matches_extension "$file") && !(matches_dir "$file") &&
+        !(matches_exempt_from_copyright "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
             matches=$(/bin/sed -nr "$COPYRIGHT_LINE_RE" "$file")
