@@ -5,9 +5,6 @@
 # Created by: Dan Nygren
 # Email: dan.nygren@gmail.com
 #
-# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
-# Copyright (c) 2019, Daniel C. Nygren.
-#
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
 # This is a git hook script to verify what is about to be committed meets
 # coding standards. It is called by "git commit" with no arguments. The hook
@@ -52,7 +49,7 @@
 #
 # ERROR HANDLING        Exits with error message
 #
-# WARNINGS              1) Only GNUmakefiles may have tab characters.
+# WARNINGS              1) Only .*[Mm]akefile* files may have tab characters.
 #                       (2. Describe anything a maintainer should be aware of)
 #                       (N. Describe anything a maintainer should be aware of)
 #
@@ -291,7 +288,7 @@ fi
 ##################################################################
 
 ##################################################################
-# If there are files (other than GNUmakefile which needs tab
+# If there are files (other than a makefile which needs tab
 # characters) containing tab characters, print them and fail.
 #
 # grep for added (A) and modified (M) files
@@ -305,7 +302,8 @@ echo "### Attempting to validate the tab character prohibition. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     filebasename="$(basename "$file")"
-    if [[ $filebasename == "GNUmakefile" ]] ; then
+    # Match GNUmakefile, Makefile, makefile, ...
+    if [[ $filebasename =~ .*[Mm]akefile* ]] ; then
         continue
     fi
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
