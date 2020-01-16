@@ -3,7 +3,8 @@
 # pre-commit : git hook to check coding standards before commit
 #
 # Created by: Dan Nygren
-# Email: dan.nygren@gmail.com
+# Email: nygren@msss.com
+# Permanent Email: dan.nygren@gmail.com
 #
 #   To enable this hook, place it in <repository>/.git/hooks/pre-commit .
 # This is a git hook script to verify what is about to be committed meets
@@ -50,6 +51,10 @@
 # ERROR HANDLING        Exits with error message
 #
 # WARNINGS              1) Only .*[Mm]akefile* files may have tab characters.
+#                       2) Copyright lines must follow the form:
+#                       Copyright (c) FirstYear, CurrentYear, $COPYRIGHT_HOLDER.
+#                       with the "(c)" and first year being optional and the
+#                       current year and closing period mandatory.
 #                       (2. Describe anything a maintainer should be aware of)
 #                       (N. Describe anything a maintainer should be aware of)
 #
@@ -80,6 +85,10 @@ CONFIG="$HOME/uncrustify/mms.cfg"
 
 # Set the copyright holder.
 # If no copyright check should be performed, leave it undefined.
+# Copyright lines must follow the form:
+# Copyright (c) FirstYear, CurrentYear, $COPYRIGHT_HOLDER.
+# with the "(c)" and first year being optional and the
+# current year and closing period mandatory.
 # COPYRIGHT_HOLDER="Daniel C. Nygren"
 # COPYRIGHT_HOLDER="example.com and/or its affiliates"
 # Files exempt from copyright check
