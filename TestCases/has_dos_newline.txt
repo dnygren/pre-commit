@@ -1,0 +1,1 @@
+This line as a dos newline at its end.
