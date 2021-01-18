@@ -73,8 +73,8 @@
 # Ignore old style revision control system "RCS" directories
 #EXEMPT_DIR_NAMES="RCS" # This normally should be done with a .gitignore file
 # These directories don't follow our coding standards
-#EXEMPT_DIR_NAMES="MAX MAX_PS Execute GDS_Data GDS_Max"
-EXEMPT_DIR_NAMES="TestCases"
+EXEMPT_DIR_NAMES="MAX MAX_PS Execute GDS_Data GDS_Max"
+#EXEMPT_DIR_NAMES="TestCases"
 
 # File types NOT to put through all checks because the 80 char line
 # length limit and tab character checks will give false positives.
@@ -119,6 +119,8 @@ else
 fi
 
 added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+# Use the below if you only want to run pre-commit on the files in the cwd
+# added_modded_files=$(ls)
 
 # Redirect output to stderr.
 exec 1>&2
@@ -254,7 +256,7 @@ for file in $added_modded_files; do
             if [ $? -ne 0 ] ; then
                 $UNCRUSTIFY -q -c $CONFIG -f $file > /tmp/`basename $file `
                 full_path_to_file=$(/usr/bin/realpath $file)
-                echo -n "-> Compare files or copy uncrustified temporary file "
+                echo -n "-> Compare files or copy uncrustified temporary file"
                 echo " over the existing file with below commands."
                 echo " gvimdiff /tmp/`basename $file` $full_path_to_file"
                 echo " cp /tmp/`basename $file` $full_path_to_file"
