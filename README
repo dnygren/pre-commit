@@ -1,5 +1,16 @@
 BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
-Copyright (c) 2019, 2020, Daniel C. Nygren.
+Copyright (c) 2019, 2021, Daniel C. Nygren.
+
+A git hook to check coding standards before a commit.
+
+The following checks (which may be individually disabled) are performed:
+   * Non-ASCII character file names
+   * Compliance with uncrustify coding standards
+   * Line lengths greater than 80 characters
+   * Tab characters
+   * Trailing whitespace
+   * DOS line endings
+   * Copyright check
 
 Read the comment header block of pre-commit for a full explanation of this
 pre-commit script.
