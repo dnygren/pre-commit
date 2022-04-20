@@ -311,7 +311,7 @@ echo "### Attempting to validate the 80 character line length limit. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if !(matches_extension "$file") && !(matches_dir "$file"); then
+    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
         if grep --line-number --with-filename '.\{81,\}' $file ; then
             # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -358,7 +358,7 @@ for file in $added_modded_files; do
         continue
     fi
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if !(matches_extension "$file") && !(matches_dir "$file"); then
+    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
         if grep --line-number --with-filename -P '\t' $file ; then
         echo "Has a tab" $file
         # If any files match, exit after checking all files
@@ -402,7 +402,7 @@ echo "### Attempting to validate the trailing whitespace prohibition. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if !(matches_extension "$file") && !(matches_dir "$file"); then
+    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
         if grep --line-number --with-filename '[[:blank:]]$' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -439,7 +439,7 @@ echo "### Attempting to validate the Unix newline requirement. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if !(matches_extension "$file") && !(matches_dir "$file"); then
+    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
         if grep --line-number --with-filename $'\r' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -508,7 +508,7 @@ then
     for file in $added_modded_files; do
         # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
         # EXEMPT_FROM_COPYRIGHT
-        if !(matches_extension "$file") && !(matches_dir "$file") &&
+        if ![matches_extension "$file"] && ![matches_dir "$file"] &&
         !(matches_exempt_from_copyright "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
