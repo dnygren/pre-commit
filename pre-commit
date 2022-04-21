@@ -2,7 +2,7 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
-# Copyright (c) 2019, 2021, Daniel C. Nygren
+# Copyright (c) 2019, 2021, 2022 Daniel C. Nygren
 # Email: nygren@msss.com
 # Permanent Email: dan.nygren@gmail.com
 #
@@ -109,6 +109,11 @@ CONFIG="$HOME/uncrustify/mms.cfg"
 # Files exempt from copyright check
 EXEMPT_FROM_COPYRIGHT="LICENSE"
 
+added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+# Uncomment the below if you only want to run pre-commit on the files in the
+# current working directory.
+# added_modded_files=$(ls)
+
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # ^^^^^^^^^^ Place code that may need modification above this point. ^^^^^^^^^^
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -121,10 +126,6 @@ else
     against=$(git hash-object -t tree /dev/null)
 fi
 
-added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
-# Use the below if you only want to run pre-commit on the files in the cwd
-# added_modded_files=$(ls)
-
 # Redirect output to stderr.
 exec 1>&2
 
@@ -135,7 +136,7 @@ allownonascii=$(git config --bool hooks.allownonascii)
 # Cross platform projects tend to avoid non-ASCII filenames; prevent
 # them from being added to the repository. We exploit the fact that the
 # printable range starts at the space character and ends with tilde.
-if [ "$allownonascii" != "true" ] &&
+if [[ "$allownonascii" != "true" ]] &&
     ##################################################################
     # If there are non-ASCII file names, print error message and fail.
     # Note that the use of brackets around a tr range is ok here, (it's
@@ -164,7 +165,7 @@ echo $EXEMPT_DIR_NAMES
 # If you want to allow files that don't comply with code conventions,
 # set this variable to true.
 allownocodeconventions=$(git config --bool hooks.allownocodeconventions)
-if [ "$allownocodeconventions" != "true" ]
+if [[ "$allownocodeconventions" != "true" ]]
 then
 
 ##################################################################
@@ -236,7 +237,7 @@ matches_exempt_from_copyright() {
 }
 
 # Make sure the uncrustify config file and executable are correctly set
-if [ ! -f "$CONFIG" ] ; then
+if [[ ! -f "$CONFIG" ]] ; then
     printf "Error: uncrustify config file $CONFIG not found.\n"
     printf "Install or set the correct path in "$0".\n"
     exit 1 # Exit failure
@@ -256,7 +257,7 @@ for file in $added_modded_files; do
         if matches_extension "$file"; then
             printf "Checking $file because its extension matches $FILE_EXTS\n"
             $UNCRUSTIFY --check -c $CONFIG -f $file
-            if [ $? -ne 0 ] ; then
+            if [[ $? -ne 0 ]] ; then
                 $UNCRUSTIFY -q -c $CONFIG -f $file > /tmp/`basename $file `
                 full_path_to_file=$(/usr/bin/realpath $file)
                 echo -n "-> Compare files or copy uncrustified temporary file"
@@ -273,7 +274,7 @@ for file in $added_modded_files; do
     fi
 done
 
-if [ $EXIT_VALUE -eq 1 ]
+if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a $UNCRUSTIFY --check -c $CONFIG -f <file> failed."
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
@@ -294,7 +295,7 @@ echo $EXEMPT_FILE_EXTS
 ##################################################################
 # If you want to allow lines > 80 set this variable to true.
 allowovereightychars=$(git config --bool hooks.allowovereightychars)
-if [ "$allowovereightychars" != "true" ]
+if [[ "$allowovereightychars" != "true" ]]
 then
 
 ##################################################################
@@ -311,7 +312,7 @@ echo "### Attempting to validate the 80 character line length limit. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
+    if ! matches_extension "$file"  && ! matches_dir "$file" ; then
         if grep --line-number --with-filename '.\{81,\}' $file ; then
             # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -320,7 +321,7 @@ for file in $added_modded_files; do
 done
 
 # If any files had a line > 80 characters, exit.
-if [ $EXIT_VALUE -eq 1 ]
+if [[ $EXIT_VALUE -eq 1 ]]
     then
     echo "Exiting because 80 character line length exceeded."
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
@@ -345,7 +346,7 @@ fi # allowovereightychars
 
 # If you want to allow tabs, set this variable to true.
 allowtabchars=$(git config --bool hooks.allowtabchars)
-if [ "$allowtabchars" != "true" ]
+if [[ "$allowtabchars" != "true" ]]
 then
 echo "### Attempting to validate the tab character prohibition. ###"
 
@@ -358,7 +359,7 @@ for file in $added_modded_files; do
         continue
     fi
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
+    if ! matches_extension "$file" && ! matches_dir "$file" ; then
         if grep --line-number --with-filename -P '\t' $file ; then
         echo "Has a tab" $file
         # If any files match, exit after checking all files
@@ -368,7 +369,7 @@ for file in $added_modded_files; do
 done
 
 # If any files had a tab character, exit.
-if [ $EXIT_VALUE -eq 1 ]
+if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with a tab character was found."
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
@@ -393,7 +394,7 @@ fi # allowtabchars
 #exec git diff-index --check --cached $against --
 
 allowtrailingwhitespace=$(git config --bool hooks.allowtrailingwhitespace)
-if [ "$allowtrailingwhitespace" != "true" ]
+if [[ "$allowtrailingwhitespace" != "true" ]]
 then
 
 echo "### Attempting to validate the trailing whitespace prohibition. ###"
@@ -402,7 +403,7 @@ echo "### Attempting to validate the trailing whitespace prohibition. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
+    if ! matches_extension "$file" && ! matches_dir "$file" ; then
         if grep --line-number --with-filename '[[:blank:]]$' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -411,7 +412,7 @@ for file in $added_modded_files; do
 done
 
 # If any files had a trailing whitespace character, exit.
-if [ $EXIT_VALUE -eq 1 ]
+if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with trailing whitespace was found."
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
@@ -427,7 +428,7 @@ fi # allowtrailingwhitespace"
 ##################################################################
 # If you want to allow dos newlines, set this variable to true.
 allowdosnewlines=$(git config --bool hooks.allowdosnewlines)
-if [ "$allowdosnewlines" != "true" ]
+if [[ "$allowdosnewlines" != "true" ]]
 then
 
 ##################################################################
@@ -439,7 +440,7 @@ echo "### Attempting to validate the Unix newline requirement. ###"
 EXIT_VALUE=0
 for file in $added_modded_files; do
     # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ![matches_extension "$file"] && ![matches_dir "$file"]; then
+    if ! matches_extension "$file" && ! matches_dir "$file"; then
         if grep --line-number --with-filename $'\r' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -448,7 +449,7 @@ for file in $added_modded_files; do
 done
 
 # If any files had a DOS newline, exit.
-if [ $EXIT_VALUE -eq 1 ]
+if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with a DOS newline was found."
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
@@ -464,7 +465,7 @@ fi # allowdosnewlines
 ##################################################################
 # If you want to allow dos newlines, set this variable to true.
 allownocopyright=$(git config --bool hooks.allownocopyright)
-if [ "$allownocopyright" != "true" ]
+if [[ "$allownocopyright" != "true" ]]
 then
 
 ##################################################################
@@ -501,14 +502,14 @@ COPYRIGHT_LINE_RE=$RE_0$RE_1$RE_2$RE_3$RE_4$SED_5
 EXIT_VALUE=0
 
 # Only perform copyright checks if the COPYRIGHT_HOLDER string is not null.
-if [ -n "$COPYRIGHT_HOLDER" ]
+if [[ -n "$COPYRIGHT_HOLDER" ]]
 then
     CURRENT_YEAR="$(date +%Y)"
     # Now we can verify each file with a for loop:
     for file in $added_modded_files; do
         # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
         # EXEMPT_FROM_COPYRIGHT
-        if ![matches_extension "$file"] && ![matches_dir "$file"] &&
+        if ! matches_extension "$file" && ! matches_dir "$file" &&
         !(matches_exempt_from_copyright "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
@@ -527,7 +528,7 @@ $CURRENT_YEAR."
         fi
     done
     # If any files had a copyright header problem, exit.
-    if [ $EXIT_VALUE -eq 1 ]
+    if [[ $EXIT_VALUE -eq 1 ]]
     then
         echo "Exiting because a file had a copyright line error."
         echo "Copyright lines must follow the form:"
