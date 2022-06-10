@@ -82,7 +82,7 @@
 # File types NOT to put through all checks because the 80 char line
 # length limit and tab character checks will give false positives.
 EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .ico .csv .html .xml .md .cfg .pdf \
-.out .log .a .bin .png .jpg"
+.out .log .a .bin .o .png .jpg"
 
 # File types to perform uncrustify checks on
 FILE_EXTS=".c .h .cc .cpp .hpp"
