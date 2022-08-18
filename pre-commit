@@ -130,54 +130,7 @@ fi
 exec 1>&2
 
 ##################################################################
-# If you want to allow non-ASCII filenames set this variable to true.
-allownonascii=$(git config --bool hooks.allownonascii)
-
-# Cross platform projects tend to avoid non-ASCII filenames; prevent
-# them from being added to the repository. We exploit the fact that the
-# printable range starts at the space character and ends with tilde.
-if [[ "$allownonascii" != "true" ]] &&
-    ##################################################################
-    # If there are non-ASCII file names, print error message and fail.
-    # Note that the use of brackets around a tr range is ok here, (it's
-    # even required, for portability to Solaris 10's /usr/bin/tr), since
-    # the square bracket bytes happen to fall in the designated range.
-    test $(git diff --cached --name-only --diff-filter=A -z $against |
-    LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
-then
-    cat <<\EOF
-ERROR Attempt to add a non-ASCII file name.
-This can cause problems if you want to work with people on other platforms.
-To be portable it is advisable to rename the file.
-If you know what you are doing you can disable this check using:
-  git config hooks.allownonascii true
-EOF
-    exit 1 # Exit failure
-fi # allownonascii
-
-##################################################################
-# Print directories exempt from all checks.
-#
-echo "### Files in the following directories are exempt from ALL checks: ###"
-echo $EXEMPT_DIR_NAMES
-
-##################################################################
-# If you want to allow files that don't comply with code conventions,
-# set this variable to true.
-allownocodeconventions=$(git config --bool hooks.allownocodeconventions)
-if [[ "$allownocodeconventions" != "true" ]]
-then
-
-##################################################################
-# If files don't comply with code conventions, print them and fail.
-#
-
-# grep for added (A) and modified (M) files
-# awk is being used here to print $2.
-# A complete git status --short line has extra space and extra data
-# at the beginning, so we want to remove that.
-# awk also performs automatic stripping.
-echo "### Attempting to validate the coding conventions. ###"
+# Functions
 
 # Check whether the given file matches any of the set extensions
 matches_extension() {
@@ -235,6 +188,56 @@ matches_exempt_from_copyright() {
     #echo -e "No \"$EXEMPT_FROM_COPYRIGHT\" in \"$1\".\n"
     return 1
 }
+
+##################################################################
+# If you want to allow non-ASCII filenames set this variable to true.
+allownonascii=$(git config --bool hooks.allownonascii)
+
+# Cross platform projects tend to avoid non-ASCII filenames; prevent
+# them from being added to the repository. We exploit the fact that the
+# printable range starts at the space character and ends with tilde.
+if [[ "$allownonascii" != "true" ]] &&
+    ##################################################################
+    # If there are non-ASCII file names, print error message and fail.
+    # Note that the use of brackets around a tr range is ok here, (it's
+    # even required, for portability to Solaris 10's /usr/bin/tr), since
+    # the square bracket bytes happen to fall in the designated range.
+    test $(git diff --cached --name-only --diff-filter=A -z $against |
+    LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+then
+    cat <<\EOF
+ERROR Attempt to add a non-ASCII file name.
+This can cause problems if you want to work with people on other platforms.
+To be portable it is advisable to rename the file.
+If you know what you are doing you can disable this check using:
+  git config hooks.allownonascii true
+EOF
+    exit 1 # Exit failure
+fi # allownonascii
+
+##################################################################
+# Print directories exempt from all checks.
+#
+echo "### Files in the following directories are exempt from ALL checks: ###"
+echo $EXEMPT_DIR_NAMES
+
+##################################################################
+# If you want to allow files that don't comply with code conventions,
+# set this variable to true.
+allownocodeconventions=$(git config --bool hooks.allownocodeconventions)
+if [[ "$allownocodeconventions" != "true" ]]
+then
+
+##################################################################
+# If files don't comply with code conventions, print them and fail.
+#
+
+# grep for added (A) and modified (M) files
+# awk is being used here to print $2.
+# A complete git status --short line has extra space and extra data
+# at the beginning, so we want to remove that.
+# awk also performs automatic stripping.
+echo "### Attempting to validate the coding conventions. ###"
 
 # Make sure the uncrustify config file and executable are correctly set
 if [[ ! -f "$CONFIG" ]] ; then
