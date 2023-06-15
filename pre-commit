@@ -2,7 +2,7 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
-# Copyright (c) 2019, 2021, 2022 Daniel C. Nygren
+# Copyright (c) 2019, 2021, 2022, 2023 Daniel C. Nygren
 # Email: nygren@msss.com
 # Permanent Email: dan.nygren@gmail.com
 #
@@ -66,7 +66,11 @@
 #                       Copyright (c) FirstYear, CurrentYear, $COPYRIGHT_HOLDER.
 #                       with the "(c)" and first year being optional and the
 #                       current year and closing period mandatory.
-#                       (2. Describe anything a maintainer should be aware of)
+#                       3) If you only want to run pre-commit on the files in
+#                       the current working directory, uncomment the line
+#                       added_modded_files=$(ls)
+#                       in the source code below.
+#                       (4. Describe anything a maintainer should be aware of)
 #                       (N. Describe anything a maintainer should be aware of)
 #
 ################################################################################
@@ -78,6 +82,13 @@
 #EXEMPT_DIR_NAMES="RCS" # This normally should be done with a .gitignore file
 # These directories don't follow our coding standards
 #EXEMPT_DIR_NAMES="TestCases"
+
+# Files exempt from all checks
+# No files are exempt from all checks
+#EXEMPT_DIR_NAMES=""
+# Source files from vendors that are too difficult to make comply with the
+# coding standards are listed here.
+#EXEMPT_FROM_ALL="pr_tftp.c pr_tftp.h"
 
 # File types NOT to put through all checks because the 80 char line
 # length limit and tab character checks will give false positives.
@@ -109,10 +120,12 @@ CONFIG="$HOME/uncrustify/mms.cfg"
 # Files exempt from copyright check
 EXEMPT_FROM_COPYRIGHT="LICENSE"
 
+# Choose to run pre-commit on all git administered files
 added_modded_files=$(git status --short | grep -E '^(A|M)' | awk '{ print $2 }')
+# or only on files in the current directory.
 # Uncomment the below if you only want to run pre-commit on the files in the
 # current working directory.
-# added_modded_files=$(ls)
+#added_modded_files=$(ls)
 
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # ^^^^^^^^^^ Place code that may need modification above this point. ^^^^^^^^^^
@@ -171,7 +184,7 @@ matches_dir() {
     return 1
 }
 
-# Check whether the given file is under any directories to be ignored
+# Check whether the given file is exempt from copyright checks
 matches_exempt_from_copyright() {
     #echo "Full filename = $1"
 
@@ -186,6 +199,24 @@ matches_exempt_from_copyright() {
     done
     # return 0 is success (matches)
     #echo -e "No \"$EXEMPT_FROM_COPYRIGHT\" in \"$1\".\n"
+    return 1
+}
+
+# Check whether the given file is exempt from all checks
+matches_exempt_from_all() {
+    #echo "Full filename = $1"
+
+    local filename="$(basename -- "$1")"
+    for exemptname in $EXEMPT_FROM_ALL
+    do
+        if [[ "$exemptname" == "$filename" ]]
+        then
+            #echo -e "Match!\n"
+            return 0
+        fi
+    done
+    # return 0 is success (matches)
+    #echo -e "No \"$EXEMPT_FROM_ALL\" in \"$1\".\n"
     return 1
 }
 
@@ -233,6 +264,13 @@ echo "### Files in these directories (if any) are exempt from all checks: ###"
 echo $EXEMPT_DIR_NAMES
 
 ##################################################################
+# Print files exempt from all checks.
+#
+echo "### These file names are exempt from all checks: ###"
+echo $EXEMPT_FROM_ALL
+
+##################################################################
+##################################################################
 # If you want to allow files that don't comply with code conventions,
 # set this variable to true.
 allownocodeconventions=$(git config --bool hooks.allownocodeconventions)
@@ -265,6 +303,7 @@ fi
 
 EXIT_VALUE=0
 for file in $added_modded_files; do
+if !(matches_exempt_from_all "$file"); then
     # Check file if its directory does not matches any of the $EXEMPT_DIR_NAMES
     if ! matches_dir "$file" ; then
         # Check file if it matches any of the extensions in $FILE_EXTS
@@ -286,6 +325,9 @@ for file in $added_modded_files; do
     else
         printf "$file exempt because its directory matched $EXEMPT_DIR_NAMES\n"
     fi
+else
+    printf "$file exempt because it matched an exempt from all file name.\n"
+fi
 done
 
 if [[ $EXIT_VALUE -eq 1 ]]
@@ -325,8 +367,10 @@ echo "### Attempting to validate the 80 character line length limit. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ! matches_extension "$file"  && ! matches_dir "$file" ; then
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
+    # EXEMPT_FROM_ALL checks
+    if ! matches_extension "$file" && ! matches_dir "$file" &&
+    !(matches_exempt_from_all "$file"); then
         if grep --line-number --with-filename '.\{81,\}' $file ; then
             # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -372,8 +416,10 @@ for file in $added_modded_files; do
     if [[ $filebasename =~ .*[Mm]akefile* ]] ; then
         continue
     fi
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ! matches_extension "$file" && ! matches_dir "$file" ; then
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
+    # EXEMPT_FROM_ALL checks
+    if ! matches_extension "$file" && ! matches_dir "$file" &&
+    !(matches_exempt_from_all "$file"); then
         if grep --line-number --with-filename -P '\t' $file ; then
         echo "Has a tab" $file
         # If any files match, exit after checking all files
@@ -416,8 +462,10 @@ echo "### Attempting to validate the trailing whitespace prohibition. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ! matches_extension "$file" && ! matches_dir "$file" ; then
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
+    # EXEMPT_FROM_ALL checks
+    if ! matches_extension "$file" && ! matches_dir "$file" &&
+    !(matches_exempt_from_all "$file"); then
         if grep --line-number --with-filename '[[:blank:]]$' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -453,8 +501,10 @@ echo "### Attempting to validate the Unix newline requirement. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES
-    if ! matches_extension "$file" && ! matches_dir "$file"; then
+    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
+    # EXEMPT_FROM_ALL checks
+    if ! matches_extension "$file" && ! matches_dir "$file" &&
+    !(matches_exempt_from_all "$file"); then
         if grep --line-number --with-filename $'\r' $file ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
@@ -522,9 +572,10 @@ then
     # Now we can verify each file with a for loop:
     for file in $added_modded_files; do
         # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-        # EXEMPT_FROM_COPYRIGHT
+        # EXEMPT_FROM_COPYRIGHT or EXEMPT_FROM_ALL checks
         if ! matches_extension "$file" && ! matches_dir "$file" &&
-        !(matches_exempt_from_copyright "$file"); then
+        !(matches_exempt_from_copyright "$file") &&
+        !(matches_exempt_from_all "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
             matches=$(/bin/sed -nr "$COPYRIGHT_LINE_RE" "$file")
