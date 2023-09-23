@@ -92,8 +92,10 @@
 
 # File types NOT to put through all checks because the 80 char line
 # length limit and tab character checks will give false positives.
-EXEMPT_FILE_EXTS=".exe .gz .tgz .xz .zip .ico .csv .html .xml .md .cfg .pdf \
-.out .log .a .bin .o .png .jpg .jp2 .cpio"
+# The check for binary files will bypass most, but not all files that
+# may be desired to be bypassed.
+EXEMPT_FILE_EXTS=".ico .csv .html .xml .md .cfg .pdf \
+.out .log .cpio"
 
 # File types to perform uncrustify checks on
 FILE_EXTS=".c .h .cc .cpp .hpp"
@@ -145,11 +147,25 @@ exec 1>&2
 ##################################################################
 # Functions
 
+# Check whether the given file is binary
+matches_binary() {
+    if ( /bin/file --mime-encoding $file | grep binary )
+    then
+        # Binary files -> successful grep match
+        # echo "$file is binary"
+        return 0
+    else
+        # Non-Binary -> unsuccessful grep match
+        # echo "$file is not binary"
+        return 1
+    fi
+}
+
 # Check whether the given file matches any of the set extensions
 matches_extension() {
-    local filename="$(basename -- "$1")"
-    local extension=".${filename##*.}"
-    local ext
+    local filename extension ext
+    filename="$(basename -- "$1")"
+    extension=".${filename##*.}"
 
     for ext in $FILE_EXTS; do [ "$ext" = "$extension" ] && return 0; done
     # return 0 is success (matches)
@@ -160,13 +176,13 @@ matches_extension() {
 matches_dir() {
     #echo "Full filename = $1"
 
-    local file_directory=$(dirname $1)
+    local file_directory spaced_file_directory dir path_portion
+    file_directory="$(dirname "$1")"
     #echo "File Directory = $file_directory"
 
-    local spaced_file_directory=${file_directory//\// }
+    spaced_file_directory="${file_directory//\// }"
     #echo "Spaced file directory = $spaced_file_directory"
 
-    local dir
     for dir in $EXEMPT_DIR_NAMES
     do
         for path_portion in $spaced_file_directory
@@ -188,7 +204,8 @@ matches_dir() {
 matches_exempt_from_copyright() {
     #echo "Full filename = $1"
 
-    local filename="$(basename -- "$1")"
+    local filename exemptname
+    filename="$(basename -- "$1")"
     for exemptname in $EXEMPT_FROM_COPYRIGHT
     do
         if [[ "$exemptname" == "$filename" ]]
@@ -206,7 +223,8 @@ matches_exempt_from_copyright() {
 matches_exempt_from_all() {
     #echo "Full filename = $1"
 
-    local filename="$(basename -- "$1")"
+    local filename exemptname
+    filename="$(basename -- "$1")"
     for exemptname in $EXEMPT_FROM_ALL
     do
         if [[ "$exemptname" == "$filename" ]]
@@ -220,16 +238,21 @@ matches_exempt_from_all() {
     return 1
 }
 
+# Print hooks override settings
+print_hooks_overrides() {
+    echo "### git hook override settings (if any): ###"
+    if git config -l | grep hooks
+    then
+        echo "### Clear using \"git config --unset hooks.xxx\" ###"
+    else
+        echo
+    fi
+}
+
 ##################################################################
-# Print hooks
+# Print hooks override settings
 #
-echo "### git hook override settings (if any): ###"
-if git config -l | grep hooks
-then
-    echo "### Clear using \"git config --unset hooks.xxx\" ###"
-else
-    echo
-fi
+print_hooks_overrides
 
 ##################################################################
 # If you want to allow non-ASCII filenames set this variable to true.
@@ -244,16 +267,17 @@ if [[ "$allownonascii" != "true" ]] &&
     # Note that the use of brackets around a tr range is ok here, (it's
     # even required, for portability to Solaris 10's /usr/bin/tr), since
     # the square bracket bytes happen to fall in the designated range.
-    test $(git diff --cached --name-only --diff-filter=A -z $against |
-    LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+    test "$(git diff --cached --name-only --diff-filter=A -z "$against" |
+    LC_ALL=C tr -d '[ -~]\0' | wc -c)" != 0
 then
     cat <<\EOF
 ERROR Attempt to add a non-ASCII file name.
 This can cause problems if you want to work with people on other platforms.
 To be portable it is advisable to rename the file.
-If you know what you are doing you can disable this check using:
-  git config hooks.allownonascii true
+If you know what you are doing you can disable this check.
+(Disable check with $ git config hooks.allownonascii true)
 EOF
+    print_hooks_overrides
     exit 1 # Exit failure
 fi # allownonascii
 
@@ -261,13 +285,13 @@ fi # allownonascii
 # Print directories exempt from all checks.
 #
 echo "### Files in these directories (if any) are exempt from all checks: ###"
-echo $EXEMPT_DIR_NAMES
+echo "$EXEMPT_DIR_NAMES"
 
 ##################################################################
 # Print files exempt from all checks.
 #
 echo "### These file names are exempt from all checks: ###"
-echo $EXEMPT_FROM_ALL
+echo "$EXEMPT_FROM_ALL"
 
 ##################################################################
 ##################################################################
@@ -290,50 +314,52 @@ echo "### Attempting to validate the coding conventions. ###"
 
 # Make sure the uncrustify config file and executable are correctly set
 if [[ ! -f "$CONFIG" ]] ; then
-    printf "Error: uncrustify config file $CONFIG not found.\n"
-    printf "Install or set the correct path in "$0".\n"
+    printf "Error: uncrustify config file %s not found.\n" "$CONFIG"
+    printf "Install or set the correct path in %s.\n" "$0"
     exit 1 # Exit failure
 fi
 
 if ! command -v "$UNCRUSTIFY" > /dev/null ; then
-    printf "Error: uncrustify executable $UNCRUSTIFY not found.\n"
-    printf "Install or set the correct path in "$0".\n"
+    printf "Error: uncrustify executable %s not found.\n" "$UNCRUSTIFY"
+    printf "Install or set the correct path in %s.\n" "$0"
     exit 1 # Exit failure
 fi
 
 EXIT_VALUE=0
 for file in $added_modded_files; do
-if !(matches_exempt_from_all "$file"); then
+if ! (matches_exempt_from_all "$file"); then
     # Check file if its directory does not matches any of the $EXEMPT_DIR_NAMES
     if ! matches_dir "$file" ; then
         # Check file if it matches any of the extensions in $FILE_EXTS
         if matches_extension "$file"; then
-            printf "Checking $file because its extension matches $FILE_EXTS\n"
-            $UNCRUSTIFY --check -c $CONFIG -f $file
-            if [[ $? -ne 0 ]] ; then
-                $UNCRUSTIFY -q -c $CONFIG -f $file > /tmp/`basename $file `
-                full_path_to_file=$(/usr/bin/realpath $file)
+            echo "Checking $file because its extension matches $FILE_EXTS"
+            if ! $UNCRUSTIFY --check -c "$CONFIG" -f "$file" ; then
+                $UNCRUSTIFY -q -c "$CONFIG" -f "$file" > \
+                /tmp/"$(basename "$file")"
+                full_path_to_file=$(/usr/bin/realpath "$file")
                 echo -n "-> Compare files or copy uncrustified temporary file"
                 echo " over the existing file with below commands."
-                echo " gvimdiff /tmp/`basename $file` $full_path_to_file"
-                echo " cp /tmp/`basename $file` $full_path_to_file"
+                echo " gvimdiff /tmp/$(basename "$file") $full_path_to_file"
+                echo " cp /tmp/$(basename "$file") $full_path_to_file"
                 EXIT_VALUE=1
             fi
         else
             echo "$file exempt because its extension didn't match $FILE_EXTS"
         fi
     else
-        printf "$file exempt because its directory matched $EXEMPT_DIR_NAMES\n"
+        echo "$file exempt because its directory matched $EXEMPT_DIR_NAMES"
     fi
 else
-    printf "$file exempt because it matched an exempt from all file name.\n"
+    echo "$file exempt because it matched an exempt from all file name."
 fi
 done
 
 if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a $UNCRUSTIFY --check -c $CONFIG -f <file> failed."
+    echo "(Disable check with $ git config hooks.allownocodeconventions true)"
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    print_hooks_overrides
     exit 1 # Exit failure
 else
     printf "Non-exempt file(s) comply.\n"
@@ -346,7 +372,7 @@ fi # allownocodeconventions
 # This time we use it to determine file types NOT to parse.
 FILE_EXTS=$EXEMPT_FILE_EXTS
 echo "### File extensions exempt from the following checks: ###"
-echo $EXEMPT_FILE_EXTS
+echo "$EXEMPT_FILE_EXTS"
 
 ##################################################################
 # If you want to allow lines > 80 set this variable to true.
@@ -367,11 +393,11 @@ echo "### Attempting to validate the 80 character line length limit. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-    # EXEMPT_FROM_ALL checks
-    if ! matches_extension "$file" && ! matches_dir "$file" &&
-    !(matches_exempt_from_all "$file"); then
-        if grep --line-number --with-filename '.\{81,\}' $file ; then
+    # Don't check binary files, EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files
+    # that are EXEMPT_FROM_ALL checks
+    if ! matches_binary && ! matches_extension "$file" &&
+    ! matches_dir "$file" && ! (matches_exempt_from_all "$file"); then
+        if grep --line-number --with-filename '.\{81,\}' "$file" ; then
             # If any files match, exit after checking all files
             EXIT_VALUE=1
         fi
@@ -382,7 +408,9 @@ done
 if [[ $EXIT_VALUE -eq 1 ]]
     then
     echo "Exiting because 80 character line length exceeded."
+    echo "(Disable check with $ git config hooks.allowovereightychars true)"
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    print_hooks_overrides
     exit 1 # Exit failure
 else
     printf "Non-exempt file(s) comply.\n"
@@ -416,12 +444,12 @@ for file in $added_modded_files; do
     if [[ $filebasename =~ .*[Mm]akefile* ]] ; then
         continue
     fi
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-    # EXEMPT_FROM_ALL checks
-    if ! matches_extension "$file" && ! matches_dir "$file" &&
-    !(matches_exempt_from_all "$file"); then
-        if grep --line-number --with-filename -P '\t' $file ; then
-        echo "Has a tab" $file
+    # Don't check binary files, EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files
+    # that are EXEMPT_FROM_ALL checks
+    if ! matches_binary && ! matches_extension "$file" &&
+    ! matches_dir "$file" && ! (matches_exempt_from_all "$file"); then
+        if grep --line-number --with-filename -P '\t' "$file" ; then
+        echo "Has a tab" "$file"
         # If any files match, exit after checking all files
             EXIT_VALUE=1
         fi
@@ -432,7 +460,9 @@ done
 if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with a tab character was found."
+    echo "(Disable check with $ git config hooks.allowtabchars true)"
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    print_hooks_overrides
     exit 1 # Exit failure
 else
     printf "Non-exempt file(s) comply.\n"
@@ -462,11 +492,11 @@ echo "### Attempting to validate the trailing whitespace prohibition. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-    # EXEMPT_FROM_ALL checks
-    if ! matches_extension "$file" && ! matches_dir "$file" &&
-    !(matches_exempt_from_all "$file"); then
-        if grep --line-number --with-filename '[[:blank:]]$' $file ; then
+    # Don't check binary files, EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files
+    # that are EXEMPT_FROM_ALL checks
+    if ! matches_binary && ! matches_extension "$file" &&
+    ! matches_dir "$file" && ! (matches_exempt_from_all "$file"); then
+        if grep --line-number --with-filename '[[:blank:]]$' "$file" ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
         fi
@@ -477,7 +507,9 @@ done
 if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with trailing whitespace was found."
+    echo "(Disable check with $ git config hooks.allowtrailingwhitespace true)"
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    print_hooks_overrides
     exit 1 # Exit failure
 else
     printf "Non-exempt file(s) comply.\n"
@@ -501,11 +533,11 @@ echo "### Attempting to validate the Unix newline requirement. ###"
 # Now we can verify each file with a for loop:
 EXIT_VALUE=0
 for file in $added_modded_files; do
-    # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-    # EXEMPT_FROM_ALL checks
-    if ! matches_extension "$file" && ! matches_dir "$file" &&
-    !(matches_exempt_from_all "$file"); then
-        if grep --line-number --with-filename $'\r' $file ; then
+    # Don't check binary files, EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files
+    # that are EXEMPT_FROM_ALL checks
+    if ! matches_binary && ! matches_extension "$file" &&
+    ! matches_dir "$file" && ! (matches_exempt_from_all "$file"); then
+        if grep --line-number --with-filename $'\r' "$file" ; then
         # If any files match, exit after checking all files
             EXIT_VALUE=1
         fi
@@ -516,7 +548,9 @@ done
 if [[ $EXIT_VALUE -eq 1 ]]
 then
     echo "Exiting because a file with a DOS newline was found."
+    echo "(Disable check with $ git config hooks.allowdosnewlines true)"
     printf "***Remember to \"git add <changed file>\" before trying again.***\n"
+    print_hooks_overrides
     exit 1 # Exit failure
 else
     printf "Non-exempt file(s) comply.\n"
@@ -571,21 +605,21 @@ then
     CURRENT_YEAR="$(date +%Y)"
     # Now we can verify each file with a for loop:
     for file in $added_modded_files; do
-        # Don't check EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or files that are
-        # EXEMPT_FROM_COPYRIGHT or EXEMPT_FROM_ALL checks
-        if ! matches_extension "$file" && ! matches_dir "$file" &&
-        !(matches_exempt_from_copyright "$file") &&
-        !(matches_exempt_from_all "$file"); then
+        # Don't check binary files or EXEMPT_FILE_EXTS or EXEMPT_DIR_NAMES or
+        # files that are EXEMPT_FROM_COPYRIGHT or EXEMPT_FROM_ALL checks
+        if ! matches_binary && ! matches_extension "$file" &&
+        ! matches_dir "$file" && ! (matches_exempt_from_copyright "$file") &&
+        ! (matches_exempt_from_all "$file"); then
             # -n do not print unless /p flag present, then acts like grep.
             # -r  use extended regular expressions
             matches=$(/bin/sed -nr "$COPYRIGHT_LINE_RE" "$file")
             if [[ -z "$matches" ]]; then
-                full_path_to_file=$(/usr/bin/realpath $file)
+                full_path_to_file=$(/usr/bin/realpath "$file")
                 echo "$full_path_to_file - Non-existent or non-matching \
 copyright line."
                 EXIT_VALUE=1
             elif [[ ! $matches =~ ^.*$CURRENT_YEAR.*$ ]]; then
-                full_path_to_file=$(/usr/bin/realpath $file)
+                full_path_to_file=$(/usr/bin/realpath "$file")
                 echo "$full_path_to_file - Copyright line does not contain \
 $CURRENT_YEAR."
                 EXIT_VALUE=1
@@ -596,10 +630,12 @@ $CURRENT_YEAR."
     if [[ $EXIT_VALUE -eq 1 ]]
     then
         echo "Exiting because a file had a copyright line error."
+        echo "(Disable with $ git config hooks.allownocopyright true)"
         echo "Copyright lines must follow the form:"
         echo "Copyright (c) FirstYear, $CURRENT_YEAR, $COPYRIGHT_HOLDER."
         printf "***Remember to \"git add <changed file>\" before trying \
 again.***\n"
+        print_hooks_overrides
         exit 1 # Exit failure
     else
         printf "Non-exempt file(s) comply.\n"
