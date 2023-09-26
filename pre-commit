@@ -94,7 +94,7 @@
 # length limit and tab character checks will give false positives.
 # The check for binary files will bypass most, but not all files that
 # may be desired to be bypassed.
-EXEMPT_FILE_EXTS=".ico .csv .html .xml .md .cfg .pdf \
+EXEMPT_FILE_EXTS=".csv .html .xml .md .cfg .tar \
 .out .log .cpio"
 
 # File types to perform uncrustify checks on
@@ -149,7 +149,7 @@ exec 1>&2
 
 # Check whether the given file is binary
 matches_binary() {
-    if ( /bin/file --mime-encoding $file | grep binary )
+    if ( /bin/file --mime-encoding $file | grep --quiet binary )
     then
         # Binary files -> successful grep match
         # echo "$file is binary"
