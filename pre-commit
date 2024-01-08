@@ -2,6 +2,7 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
+# BSD 0-clause license, "Zero Clause BSD", SPDX: 0BSD
 # Copyright (c) 2019, 2024, Daniel C. Nygren.
 # Email: nygren@msss.com
 # Permanent Email: dan.nygren@gmail.com
