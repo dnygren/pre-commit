@@ -2,7 +2,7 @@
 ################################################################################
 # pre-commit : git hook to check coding standards before commit
 #
-# Copyright (c) 2019, 2021, 2022, 2023 Daniel C. Nygren
+# Copyright (c) 2019, 2024, Daniel C. Nygren.
 # Email: nygren@msss.com
 # Permanent Email: dan.nygren@gmail.com
 #
@@ -51,6 +51,7 @@
 #                       EXEMPT_DIR_NAMES and EXEMPT_FILE_EXTS to not check
 #                       COPYRIGHT_HOLDER
 #                       Files EXEMPT_FROM_COPYRIGHT not to check for copyright.
+#                       Uses the TMPDIR environment variable if set.
 #
 # OUTPUTS               Information on where code checks failed and how to
 #                       resolve them. If uncrustify fails, a passing example is
@@ -334,13 +335,15 @@ if ! (matches_exempt_from_all "$file"); then
         if matches_extension "$file"; then
             echo "Checking $file because its extension matches $FILE_EXTS"
             if ! $UNCRUSTIFY --check -c "$CONFIG" -f "$file" ; then
-                $UNCRUSTIFY -q -c "$CONFIG" -f "$file" > \
-                /tmp/"$(basename "$file")"
+                # If TMPDIR is unset or null, use "tmp"
+                tmp_dir=${TMPDIR:-tmp}
+                tmp_file=$(/bin/mktemp /$tmp_dir/"$(basename "$file")".XXXXX)
+                $UNCRUSTIFY -q -c "$CONFIG" -f "$file" > $tmp_file
                 full_path_to_file=$(/usr/bin/realpath "$file")
                 echo -n "-> Compare files or copy uncrustified temporary file"
                 echo " over the existing file with below commands."
-                echo " gvimdiff /tmp/$(basename "$file") $full_path_to_file"
-                echo " cp /tmp/$(basename "$file") $full_path_to_file"
+                echo " gvimdiff $tmp_file $full_path_to_file"
+                echo " cp $tmp_file $full_path_to_file"
                 EXIT_VALUE=1
             fi
         else
