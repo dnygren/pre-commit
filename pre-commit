@@ -42,7 +42,7 @@
 # DEVELOPMENT SYSTEM    Linux
 #
 # CALLS                 git, grep, awk, uncrustify, realpath, dirname,
-#                       basename, sed
+#                       basename, sed, mktemp
 #
 # CALLED BY             git
 #
@@ -338,7 +338,7 @@ if ! (matches_exempt_from_all "$file"); then
             if ! $UNCRUSTIFY --check -c "$CONFIG" -f "$file" ; then
                 # If TMPDIR is unset or null, use "tmp"
                 tmp_dir=${TMPDIR:-tmp}
-                tmp_file=$(/bin/mktemp /$tmp_dir/"$(basename "$file")".XXXXX)
+                tmp_file=$(/bin/mktemp /$tmp_dir/XXXXX."$(basename "$file")")
                 $UNCRUSTIFY -q -c "$CONFIG" -f "$file" > $tmp_file
                 full_path_to_file=$(/usr/bin/realpath "$file")
                 echo -n "-> Compare files or copy uncrustified temporary file"
